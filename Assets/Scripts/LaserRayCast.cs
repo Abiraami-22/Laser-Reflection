@@ -1,26 +1,63 @@
-using UnityEngine;
-using UnityEngine.InputSystem;
+﻿using UnityEngine;
 
 public class LaserRaycast : MonoBehaviour
 {
+    private LineRenderer line;
+    public float maxDistance = 100f;
+    public int maxBounces = 2;
+
+    void Awake()
+    {
+        line = GetComponent<LineRenderer>();
+    }
+
     void Update()
     {
-        Vector3 mousePos = Mouse.current.position.ReadValue();
-        mousePos = Camera.main.ScreenToWorldPoint(mousePos);
-        mousePos.z = 0f;
+        ShootLaser();
+    }
 
-        Vector2 direction = (mousePos - transform.position).normalized;
+    void ShootLaser()
+    {
+        line.positionCount = 1;
+        line.SetPosition(0, transform.position);
 
-        RaycastHit2D hit = Physics2D.Raycast(transform.position, direction);
+        Vector2 direction = Vector2.right;
+
+        CastLaser(transform.position, direction, maxBounces);
+    }
+
+    void CastLaser(Vector2 startPos, Vector2 direction, int bouncesLeft)
+    {
+        RaycastHit2D hit = Physics2D.Raycast(startPos, direction, maxDistance);
 
         if (hit.collider != null)
         {
-            Debug.DrawLine(transform.position, hit.point, Color.red);
+            line.positionCount++;
+            line.SetPosition(line.positionCount - 1, hit.point);
+
+            if (hit.collider.CompareTag("Wall"))
+                return;
+
+            if (hit.collider.CompareTag("Mirror") && bouncesLeft > 0)
+            {
+                Vector2 reflectDir = Vector2.Reflect(direction, hit.normal);
+                CastLaser(hit.point, reflectDir, bouncesLeft - 1);
+            }
+
+            // 🔥 THIS IS THE IMPORTANT CONNECTION
+            if (hit.collider.CompareTag("Target"))
+            {
+                Target target = hit.collider.GetComponent<Target>();
+                if (target != null)
+                {
+                    target.isLit = true;
+                }
+            }
         }
         else
         {
-            Debug.DrawRay(transform.position, direction * 20f, Color.red);
+            line.positionCount++;
+            line.SetPosition(line.positionCount - 1, startPos + direction * maxDistance);
         }
     }
 }
-
