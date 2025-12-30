@@ -44,13 +44,13 @@ public class LaserRaycast : MonoBehaviour
                 CastLaser(hit.point, reflectDir, bouncesLeft - 1);
             }
 
-            // 🔥 THIS IS THE IMPORTANT CONNECTION
+            // 🔥 CONNECT LASER → TARGET (FINAL & CORRECT WAY)
             if (hit.collider.CompareTag("Target"))
             {
                 Target target = hit.collider.GetComponent<Target>();
                 if (target != null)
                 {
-                    target.isLit = true;
+                    target.SetLit();   // ⭐ THIS IS THE IMPORTANT CHANGE
                 }
             }
         }
