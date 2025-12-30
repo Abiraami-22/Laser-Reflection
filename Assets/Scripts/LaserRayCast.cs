@@ -21,7 +21,8 @@ public class LaserRaycast : MonoBehaviour
         line.positionCount = 1;
         line.SetPosition(0, transform.position);
 
-        Vector2 direction = Vector2.right;
+        // 🔥 Direction now comes from rotation
+        Vector2 direction = transform.right;
 
         CastLaser(transform.position, direction, maxBounces);
     }
@@ -41,23 +42,26 @@ public class LaserRaycast : MonoBehaviour
             if (hit.collider.CompareTag("Mirror") && bouncesLeft > 0)
             {
                 Vector2 reflectDir = Vector2.Reflect(direction, hit.normal);
-                CastLaser(hit.point, reflectDir, bouncesLeft - 1);
+                Vector2 newStartPos = hit.point + reflectDir * 0.01f;
+                CastLaser(newStartPos, reflectDir, bouncesLeft - 1);
             }
 
-            // 🔥 CONNECT LASER → TARGET (FINAL & CORRECT WAY)
             if (hit.collider.CompareTag("Target"))
             {
                 Target target = hit.collider.GetComponent<Target>();
                 if (target != null)
                 {
-                    target.SetLit();   // ⭐ THIS IS THE IMPORTANT CHANGE
+                    target.SetLit();
                 }
             }
         }
         else
         {
             line.positionCount++;
-            line.SetPosition(line.positionCount - 1, startPos + direction * maxDistance);
+            line.SetPosition(
+                line.positionCount - 1,
+                startPos + direction * maxDistance
+            );
         }
     }
 }

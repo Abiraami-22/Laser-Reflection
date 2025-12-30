@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using System.Collections;
 
 public class Target : MonoBehaviour
@@ -10,6 +10,7 @@ public class Target : MonoBehaviour
 
     [Header("UI")]
     public GameObject levelCompleteText;
+    public float delayAfterPop = 2f;
 
     private bool isLit = false;
     private bool levelCompleted = false;
@@ -17,11 +18,13 @@ public class Target : MonoBehaviour
     private float charge = 0f;
 
     private SpriteRenderer sr;
+    private Collider2D col;
     private Color baseColor;
 
     void Start()
     {
         sr = GetComponent<SpriteRenderer>();
+        col = GetComponent<Collider2D>();
         baseColor = sr.color;
 
         if (levelCompleteText != null)
@@ -32,31 +35,23 @@ public class Target : MonoBehaviour
     {
         if (isLit && !levelCompleted)
         {
-            // Increase charge smoothly
             charge += Time.deltaTime / requiredTime;
             charge = Mathf.Clamp01(charge);
 
-            // Smooth color transition (charging)
-            Color chargedColor = Color.Lerp(
+            sr.color = Color.Lerp(
                 baseColor,
                 laserColor * glowMultiplier,
                 charge
             );
-            sr.color = chargedColor;
 
             if (charge >= 1f)
             {
                 levelCompleted = true;
-
-                if (levelCompleteText != null)
-                    levelCompleteText.SetActive(true);
-
-                StartCoroutine(PopCrystal());
+                StartCoroutine(PopThenShowUI());
             }
         }
         else if (!levelCompleted)
         {
-            // Discharge smoothly if laser breaks (FIXED)
             charge -= Time.deltaTime;
             charge = Mathf.Clamp01(charge);
 
@@ -67,7 +62,6 @@ public class Target : MonoBehaviour
             );
         }
 
-        // Reset laser signal every frame (only if not completed)
         if (!levelCompleted)
             isLit = false;
     }
@@ -76,6 +70,16 @@ public class Target : MonoBehaviour
     public void SetLit()
     {
         isLit = true;
+    }
+
+    IEnumerator PopThenShowUI()
+    {
+        yield return StartCoroutine(PopCrystal());
+
+        yield return new WaitForSeconds(delayAfterPop);
+
+        if (levelCompleteText != null)
+            levelCompleteText.SetActive(true);
     }
 
     IEnumerator PopCrystal()
@@ -97,6 +101,9 @@ public class Target : MonoBehaviour
             yield return null;
         }
 
-        gameObject.SetActive(false);
+        // 🔥 Hide crystal visually but keep object alive
+        sr.enabled = false;
+        if (col != null)
+            col.enabled = false;
     }
 }
