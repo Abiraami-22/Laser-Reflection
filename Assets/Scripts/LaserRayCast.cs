@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System.Collections;
 
 public class LaserRaycast : MonoBehaviour
 {
@@ -7,60 +8,50 @@ public class LaserRaycast : MonoBehaviour
     [Header("Laser Settings")]
     public float maxDistance = 100f;
     public int maxBounces = 10;
-    public float laserStartOffset = 0.05f;   // 🔥 NEW: prevents glow stacking at source
+    public float laserStartOffset = 0.05f;
 
     [Header("VFX Objects")]
     public GameObject startVFXObject;
     public GameObject endVFXObject;
+
+    [Header("Laser SFX")]
+    public AudioSource laserHumSource;
+    public float humLoopStart = 0.5f;   // seconds
+    public float humLoopEnd = 9.5f;     // seconds
+    public float humStartDelay = 0f;
 
     private ParticleSystem startVFX;
     private ParticleSystem[] endVFXs;
 
     private bool endVFXPlaying = false;
     private bool setupValid = true;
+    private bool humPlaying = false;
 
     void Awake()
     {
         line = GetComponent<LineRenderer>();
         if (line == null)
         {
-            Debug.LogError("[LaserRaycast] LineRenderer missing!");
             setupValid = false;
             return;
         }
 
-        // ---------- START VFX ----------
+        // START VFX
         if (startVFXObject != null)
         {
             startVFX = startVFXObject.GetComponentInChildren<ParticleSystem>();
             if (startVFX != null)
-            {
-                startVFX.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 startVFX.Play();
-            }
-            else
-            {
-                Debug.LogWarning("[LaserRaycast] StartVFXObject has no ParticleSystem.");
-            }
         }
 
-        // ---------- END VFX ----------
+        // END VFX
         if (endVFXObject == null)
         {
-            Debug.LogError("[LaserRaycast] EndVFXObject not assigned!");
             setupValid = false;
             return;
         }
 
         endVFXs = endVFXObject.GetComponentsInChildren<ParticleSystem>();
-
-        if (endVFXs.Length == 0)
-        {
-            Debug.LogError("[LaserRaycast] EndVFXObject has NO ParticleSystems!");
-            setupValid = false;
-            return;
-        }
-
         foreach (var ps in endVFXs)
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
@@ -73,11 +64,11 @@ public class LaserRaycast : MonoBehaviour
             return;
 
         ShootLaser();
+        HandleLaserHumLoop();
     }
 
     void ShootLaser()
     {
-        // 🔥 Offset laser start to avoid bloom pile-up
         Vector2 laserStart =
             (Vector2)transform.position + (Vector2)transform.right * laserStartOffset;
 
@@ -86,10 +77,10 @@ public class LaserRaycast : MonoBehaviour
 
         Vector2 direction = transform.right;
 
-        bool shouldPlayEndVFX =
+        bool hitSomething =
             CastLaser(laserStart, direction, maxBounces);
 
-        if (!shouldPlayEndVFX)
+        if (!hitSomething)
             StopEndVFX();
     }
 
@@ -107,25 +98,19 @@ public class LaserRaycast : MonoBehaviour
             float angle = Mathf.Atan2(hit.normal.y, hit.normal.x) * Mathf.Rad2Deg;
             endVFXObject.transform.rotation = Quaternion.Euler(0, 0, angle);
 
-            // WALL
             if (hit.collider.CompareTag("Wall"))
             {
                 PlayEndVFX();
                 return true;
             }
 
-            // MIRROR
             if (hit.collider.CompareTag("Mirror") && bouncesLeft > 0)
             {
                 Vector2 reflectDir = Vector2.Reflect(direction, hit.normal);
-
-                // 🔥 INCREASED OFFSET (IMPORTANT)
                 Vector2 newStartPos = hit.point + reflectDir * 0.05f;
-
                 return CastLaser(newStartPos, reflectDir, bouncesLeft - 1);
             }
 
-            // TARGET
             if (hit.collider.CompareTag("Target"))
             {
                 Target target = hit.collider.GetComponent<Target>();
@@ -155,7 +140,6 @@ public class LaserRaycast : MonoBehaviour
             return;
 
         endVFXObject.SetActive(true);
-
         foreach (var ps in endVFXs)
             ps.Play();
 
@@ -172,5 +156,41 @@ public class LaserRaycast : MonoBehaviour
 
         endVFXObject.SetActive(false);
         endVFXPlaying = false;
+    }
+
+    // 🔊 LASER HUM LOOP WITH CUSTOM LOOP POINTS
+    void HandleLaserHumLoop()
+    {
+        if (laserHumSource == null)
+            return;
+
+        if (!humPlaying)
+        {
+            StartCoroutine(StartHumWithDelay());
+            humPlaying = true;
+        }
+
+        if (laserHumSource.isPlaying &&
+            laserHumSource.time >= humLoopEnd)
+        {
+            laserHumSource.time = humLoopStart;
+        }
+    }
+
+    IEnumerator StartHumWithDelay()
+    {
+        if (humStartDelay > 0)
+            yield return new WaitForSeconds(humStartDelay);
+
+        laserHumSource.time = humLoopStart;
+        laserHumSource.Play();
+    }
+
+    public void StopLaserHum()
+    {
+        if (laserHumSource != null)
+            laserHumSource.Stop();
+
+        humPlaying = false;
     }
 }

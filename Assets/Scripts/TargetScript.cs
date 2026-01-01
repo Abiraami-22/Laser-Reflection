@@ -12,8 +12,41 @@ public class Target : MonoBehaviour
     public GameObject levelCompleteText;
     public float delayAfterPop = 2f;
 
+    // =======================
+    // 🔊 AUDIO SOURCES
+    // =======================
+
+    [Header("Audio Sources")]
+    public AudioSource chargeSource;
+    public AudioSource breakSource;
+
+    // =======================
+    // 🔊 CHARGE SOUND SETTINGS
+    // =======================
+
+    [Header("Charge Sound Loop (Seconds)")]
+    public float chargeLoopStart = 0f;
+    public float chargeLoopEnd = 5f;
+    public float chargeDelay = 0f;
+
+    // =======================
+    // 🔊 BREAK SOUND SETTINGS
+    // =======================
+
+    [Header("Break Sound Timing (Seconds)")]
+    public float breakStartTime = 0f;
+    public float breakEndTime = 1f;   // optional (for future looping)
+    public float breakDelay = 0f;
+
+    // =======================
+    // INTERNAL STATE
+    // =======================
+
     private bool isLit = false;
     private bool levelCompleted = false;
+
+    private bool chargeLoopActive = false;
+    private bool breakPlayed = false;
 
     private float charge = 0f;
 
@@ -38,15 +71,14 @@ public class Target : MonoBehaviour
             charge += Time.deltaTime / requiredTime;
             charge = Mathf.Clamp01(charge);
 
-            sr.color = Color.Lerp(
-                baseColor,
-                laserColor * glowMultiplier,
-                charge
-            );
+            sr.color = Color.Lerp(baseColor, laserColor * glowMultiplier, charge);
+
+            StartChargeLoop();
 
             if (charge >= 1f)
             {
                 levelCompleted = true;
+                StopChargeLoop();
                 StartCoroutine(PopThenShowUI());
             }
         }
@@ -55,35 +87,109 @@ public class Target : MonoBehaviour
             charge -= Time.deltaTime;
             charge = Mathf.Clamp01(charge);
 
-            sr.color = Color.Lerp(
-                baseColor,
-                laserColor * glowMultiplier,
-                charge
-            );
+            sr.color = Color.Lerp(baseColor, laserColor * glowMultiplier, charge);
+            StopChargeLoop();
         }
 
-        // Reset laser signal every frame (unless completed)
+        // Manual charge loop
+        if (chargeLoopActive && chargeSource != null && chargeSource.isPlaying)
+        {
+            if (chargeSource.time >= chargeLoopEnd)
+                chargeSource.time = chargeLoopStart;
+        }
+
         if (!levelCompleted)
             isLit = false;
     }
 
-    // 🔥 Called by LaserRaycast
+    // =======================
+    // 🔥 LASER INTERFACE
+    // =======================
+
     public void SetLit()
     {
         if (!levelCompleted)
             isLit = true;
     }
 
-    // ⭐ NEW: Used by LaserRaycast to stop EndVFX permanently
     public bool IsPopped()
     {
         return levelCompleted;
     }
 
+    // =======================
+    // 🔊 CHARGE SOUND CONTROL
+    // =======================
+
+    public void StartChargeLoop()
+    {
+        if (chargeLoopActive || chargeSource == null)
+            return;
+
+        chargeLoopActive = true;
+        StartCoroutine(StartChargeAfterDelay());
+    }
+
+    public void StopChargeLoop()
+    {
+        if (!chargeLoopActive || chargeSource == null)
+            return;
+
+        chargeSource.Stop();
+        chargeLoopActive = false;
+    }
+
+    IEnumerator StartChargeAfterDelay()
+    {
+        if (chargeDelay > 0)
+            yield return new WaitForSeconds(chargeDelay);
+
+        chargeSource.time = chargeLoopStart;
+        chargeSource.Play();
+    }
+
+    // =======================
+    // 💥 BREAK SOUND CONTROL
+    // =======================
+
+    public void PlayBreakSound()
+    {
+        if (breakPlayed || breakSource == null)
+            return;
+
+        breakPlayed = true;
+        StartCoroutine(PlayBreakAfterDelay());
+    }
+
+    IEnumerator PlayBreakAfterDelay()
+    {
+        if (breakDelay > 0)
+            yield return new WaitForSeconds(breakDelay);
+
+        breakSource.time = breakStartTime;
+        breakSource.Play();
+
+        // Optional stop point (future-proofing)
+        if (breakEndTime > breakStartTime)
+            StartCoroutine(StopBreakAtEnd());
+    }
+
+    IEnumerator StopBreakAtEnd()
+    {
+        float duration = breakEndTime - breakStartTime;
+        yield return new WaitForSeconds(duration);
+
+        if (breakSource.isPlaying)
+            breakSource.Stop();
+    }
+
+    // =======================
+    // 💥 VISUALS
+    // =======================
+
     IEnumerator PopThenShowUI()
     {
         yield return StartCoroutine(PopCrystal());
-
         yield return new WaitForSeconds(delayAfterPop);
 
         if (levelCompleteText != null)
@@ -92,6 +198,10 @@ public class Target : MonoBehaviour
 
     IEnumerator PopCrystal()
     {
+        PlayBreakSound();
+        LaserRaycast laser = FindFirstObjectByType<LaserRaycast>();
+        if (laser != null) { laser.StopLaserHum(); }
+
         Vector3 startScale = transform.localScale;
         Vector3 endScale = startScale * 1.3f;
 
@@ -109,7 +219,6 @@ public class Target : MonoBehaviour
             yield return null;
         }
 
-        // 🔥 Hide crystal visually but keep object alive
         sr.enabled = false;
         if (col != null)
             col.enabled = false;
