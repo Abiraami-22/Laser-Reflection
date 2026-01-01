@@ -7,6 +7,7 @@ public class LaserRaycast : MonoBehaviour
     [Header("Laser Settings")]
     public float maxDistance = 100f;
     public int maxBounces = 10;
+    public float laserStartOffset = 0.05f;   // 🔥 NEW: prevents glow stacking at source
 
     [Header("VFX Objects")]
     public GameObject startVFXObject;
@@ -60,7 +61,6 @@ public class LaserRaycast : MonoBehaviour
             return;
         }
 
-        // Stop everything at start
         foreach (var ps in endVFXs)
             ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
@@ -77,13 +77,17 @@ public class LaserRaycast : MonoBehaviour
 
     void ShootLaser()
     {
+        // 🔥 Offset laser start to avoid bloom pile-up
+        Vector2 laserStart =
+            (Vector2)transform.position + (Vector2)transform.right * laserStartOffset;
+
         line.positionCount = 1;
-        line.SetPosition(0, transform.position);
+        line.SetPosition(0, laserStart);
 
         Vector2 direction = transform.right;
 
         bool shouldPlayEndVFX =
-            CastLaser(transform.position, direction, maxBounces);
+            CastLaser(laserStart, direction, maxBounces);
 
         if (!shouldPlayEndVFX)
             StopEndVFX();
@@ -98,7 +102,6 @@ public class LaserRaycast : MonoBehaviour
             line.positionCount++;
             line.SetPosition(line.positionCount - 1, hit.point);
 
-            // Move EndVFXObject to hit point
             endVFXObject.transform.position = hit.point;
 
             float angle = Mathf.Atan2(hit.normal.y, hit.normal.x) * Mathf.Rad2Deg;
@@ -115,7 +118,10 @@ public class LaserRaycast : MonoBehaviour
             if (hit.collider.CompareTag("Mirror") && bouncesLeft > 0)
             {
                 Vector2 reflectDir = Vector2.Reflect(direction, hit.normal);
-                Vector2 newStartPos = hit.point + reflectDir * 0.01f;
+
+                // 🔥 INCREASED OFFSET (IMPORTANT)
+                Vector2 newStartPos = hit.point + reflectDir * 0.05f;
+
                 return CastLaser(newStartPos, reflectDir, bouncesLeft - 1);
             }
 
