@@ -62,14 +62,22 @@ public class Target : MonoBehaviour
             );
         }
 
+        // Reset laser signal every frame (unless completed)
         if (!levelCompleted)
             isLit = false;
     }
 
-    // Called by LaserRaycast
+    // 🔥 Called by LaserRaycast
     public void SetLit()
     {
-        isLit = true;
+        if (!levelCompleted)
+            isLit = true;
+    }
+
+    // ⭐ NEW: Used by LaserRaycast to stop EndVFX permanently
+    public bool IsPopped()
+    {
+        return levelCompleted;
     }
 
     IEnumerator PopThenShowUI()

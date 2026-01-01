@@ -106,7 +106,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TargetScript
   requiredTime: 3
-  laserColor: {r: 0.9686275, g: 0.39607847, b: 0.41960788, a: 1}
+  laserColor: {r: 1, g: 0, b: 0, a: 1}
   glowMultiplier: 1.5
   levelCompleteText: {fileID: 0}
   delayAfterPop: 0.4
