@@ -7,61 +7,88 @@ public class FadeManager : MonoBehaviour
     public static FadeManager Instance;
 
     public float fadeDuration = 2f;
+
     private CanvasGroup fadeGroup;
+    private Coroutine currentFade;
 
     void Awake()
     {
-        if (Instance == null)
-        {
-            Instance = this;
-            DontDestroyOnLoad(gameObject);
-            SceneManager.sceneLoaded += OnSceneLoaded;
-        }
-        else
+        if (Instance != null)
         {
             Destroy(gameObject);
+            return;
         }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+
+        Time.timeScale = 1f;
+
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    void OnDestroy()
+    {
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
+        // Always re-find CanvasGroup after scene load
         fadeGroup = FindFirstObjectByType<CanvasGroup>();
-        if (fadeGroup != null)
-            StartCoroutine(FadeIn());
+
+        if (fadeGroup == null)
+            return;
+
+        fadeGroup.alpha = 1f;
+        fadeGroup.interactable = false;
+        fadeGroup.blocksRaycasts = true;
+
+        if (currentFade != null)
+            StopCoroutine(currentFade);
+
+        currentFade = StartCoroutine(FadeIn());
     }
 
     public void FadeToScene(string sceneName)
     {
-        StartCoroutine(FadeOutAndLoad(sceneName));
+        if (fadeGroup == null)
+            return;
+
+        if (currentFade != null)
+            StopCoroutine(currentFade);
+
+        currentFade = StartCoroutine(FadeOutAndLoad(sceneName));
     }
 
     IEnumerator FadeOutAndLoad(string sceneName)
     {
-        yield return StartCoroutine(FadeOut());
+        yield return Fade(1f);
         SceneManager.LoadScene(sceneName);
-    }
-
-    IEnumerator FadeOut()
-    {
-        float t = 0f;
-        while (t < fadeDuration)
-        {
-            t += Time.deltaTime;
-            fadeGroup.alpha = t / fadeDuration;
-            yield return null;
-        }
-        fadeGroup.alpha = 1f;
     }
 
     IEnumerator FadeIn()
     {
-        float t = fadeDuration;
-        while (t > 0f)
+        yield return Fade(0f);
+        fadeGroup.blocksRaycasts = false;
+    }
+
+    IEnumerator Fade(float target)
+    {
+        float start = fadeGroup.alpha;
+        float t = 0f;
+
+        while (t < fadeDuration)
         {
-            t -= Time.deltaTime;
-            fadeGroup.alpha = t / fadeDuration;
+            t += Time.unscaledDeltaTime;
+
+            if (fadeGroup == null)
+                yield break;
+
+            fadeGroup.alpha = Mathf.Lerp(start, target, t / fadeDuration);
             yield return null;
         }
-        fadeGroup.alpha = 0f;
+
+        fadeGroup.alpha = target;
     }
 }
